@@ -17,28 +17,10 @@
         .rank { flex: 0 0 30px; color: #888; text-align: right; padding-right: 10px; font-size: 18px; }
         .votes { flex: 0 0 70px; text-align: center; padding: 0 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .votes strong { color: #1DA1F2; font-size: 15px; }
+        .votes a { color: inherit; transition: transform 0.2s; display: flex; flex-direction: column; align-items: center; }
+        .votes a:hover { transform: scale(1.1); }
         .paper-content { flex: 1; display: flex; flex-direction: column; }
-        .paper-title { color: #0000ff; text-decoration: none; font-weight: bold; font-size: 16px; position: relative; }
-        .paper-title:hover::after { 
-            content: attr(data-abstract); 
-            position: absolute; 
-            left: 0; 
-            top: 100%; 
-            z-index: 100;
-            width: 300px; 
-            padding: 10px; 
-            background: white; 
-            border: 1px solid #ddd; 
-            border-radius: 5px; 
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            font-weight: normal;
-            font-size: 12px;
-            color: #333;
-            line-height: 1.4;
-            white-space: normal;
-            max-height: 300px;
-            overflow-y: auto;
-        }
+        .paper-title { color: #0000ff; text-decoration: none; font-weight: bold; font-size: 16px; }
         .paper-meta { color: #888; font-size: 12px; margin-top: 4px; }
         .paper-details { margin-top: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 5px; display: none; }
         .paper-details.show { display: block; }
@@ -138,11 +120,13 @@
                 <div class="paper-main" onclick="toggleDetails(${index})">
                     <div class="rank">${index + 1}</div>
                     <div class="votes">
-                        <strong>${paper.tweets}</strong>
-                        <span>tweets</span>
+                        <a href="https://x.com/search?q=${paper.arxiv_id}&src=typed_query&f=top" target="_blank" style="text-decoration:none" onclick="event.stopPropagation()">
+                            <strong>${paper.tweets}</strong>
+                            <span>tweets</span>
+                        </a>
                     </div>
                     <div class="paper-content">
-                        <a href="${paper.paper_link}" class="paper-title" target="_blank" data-abstract="${paper.abstract?.substring(0, 500)}${paper.abstract?.length > 500 ? '...' : ''}" onclick="event.stopPropagation()">${paper.title}</a>
+                        <a href="${paper.paper_link}" class="paper-title" target="_blank" onclick="event.stopPropagation()">${paper.title}</a>
                         <div class="paper-meta">
                             ${formatDate(paper.published)} | ${formatAuthors(paper.authors)} | 📚 ${paper.citations} citations
                         </div>

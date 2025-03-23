@@ -10,7 +10,12 @@ import os
 import hashlib
 from dateutil.relativedelta import relativedelta
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 from arxiv_db import ArxivDatabase
+from twitter_search import TwitterSearch
+
+# Load environment variables from .env file
+load_dotenv()
 
 RESULTS_DIR = 'results'
 os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -177,14 +182,22 @@ def get_citation_count(arxiv_id):
         print(f"Error accessing Google Scholar for {arxiv_id}: {e}")
         return 0
 
-def estimate_twitter_mentions(arxiv_id):
-    print(f"Estimating Twitter mentions for arXiv:{arxiv_id}")
+def get_twitter_mentions(arxiv_id):
+    print(f"Fetching Twitter mentions for arXiv:{arxiv_id}")
     
-    hash_val = int(hashlib.md5(arxiv_id.encode()).hexdigest(), 16)
-    random.seed(hash_val)
-    count = random.randint(0, 50)
+    # TwitterSearch will automatically get tokens from .env via environment variables
+    twitter = TwitterSearch()
     
-    print(f"Estimated {count} tweets mentioning arXiv:{arxiv_id}")
+    # Check if we have credentials
+    if not twitter.api_client:
+        print("Warning: Twitter API tokens not available in .env file or environment variables")
+        print("Add TWITTER_AUTH_TOKEN and TWITTER_CT0_TOKEN to your .env file")
+        return 0
+    
+    # Use TwitterSearch to get actual tweet counts
+    count = twitter.get_tweet_count(arxiv_id, delay=5.0)
+    
+    print(f"Found {count} tweets mentioning arXiv:{arxiv_id}")
     return count
 
 def enrich_papers_with_metrics(papers):
@@ -199,11 +212,11 @@ def enrich_papers_with_metrics(papers):
             papers[i]['citations'] = citations
             print(f"Citations: {citations}")
             
-            tweets = estimate_twitter_mentions(arxiv_id)
+            tweets = get_twitter_mentions(arxiv_id)
             papers[i]['tweets'] = tweets
             print(f"Twitter mentions: {tweets}")
             
-            time.sleep(random.uniform(2, 4))
+            # No need for additional sleep since get_twitter_mentions already has rate limiting
         else:
             print(f"No arXiv ID found for paper {i+1}")
     
@@ -286,7 +299,13 @@ Options:
   --keywords=FILE    Specify keywords file (default: tags.txt)
   --max=NUMBER       Maximum number of results (default: 10)
   --keep-existing    Don't clear the database before adding new papers
+  --auth=TOKEN       Twitter auth_token (override .env)
+  --ct0=TOKEN        Twitter ct0 token (override .env)
   --help             Show this help message
+
+Environment Variables (in .env file):
+  TWITTER_AUTH_TOKEN    Twitter auth_token for API access
+  TWITTER_CT0_TOKEN     Twitter ct0 token for API access
 
 Examples:
   python arxiv_collector.py
@@ -304,8 +323,19 @@ Examples:
             except:
                 print("Error: --max must be a number")
                 sys.exit(1)
+        elif arg.startswith("--auth="):
+            auth_token = arg.split("=")[1]
+            os.environ["TWITTER_AUTH_TOKEN"] = auth_token
+        elif arg.startswith("--ct0="):
+            ct0 = arg.split("=")[1]
+            os.environ["TWITTER_CT0_TOKEN"] = ct0
         else:
             print(f"Unknown argument: {arg}")
             sys.exit(1)
+    
+    # Check if we have Twitter tokens in environment
+    if not os.environ.get("TWITTER_AUTH_TOKEN") or not os.environ.get("TWITTER_CT0_TOKEN"):
+        print("Note: Twitter API tokens not set in .env file or command line")
+        print("Twitter mention counts will not be available")
     
     search_and_store(keywords_file, max_results, keep_existing)
