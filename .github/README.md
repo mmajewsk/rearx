@@ -12,9 +12,7 @@ To set up automatic deployment, you need to add the following secrets to your Gi
 
 ### SSH Connection
 - `SSH_PRIVATE_KEY`: The private SSH key for connecting to the MongoDB server (must not have a passphrase)
-- `SSH_KNOWN_HOSTS`: The SSH known hosts entry for the MongoDB server (run `ssh-keyscan hostname` to get this)
-- `SSH_HOST`: The hostname or IP address of the MongoDB server
-- `SSH_PORT`: The SSH port of the MongoDB server (usually 22)
+- `REMOTE_SERVER`: The hostname or IP address of the MongoDB server
 - `SSH_USER`: The SSH username for authentication
 
 ### MongoDB Connection (Optional, defaults provided)
@@ -51,31 +49,7 @@ cat github-actions
 cat github-actions.pub
 ```
 
-### Generating SSH Known Hosts
-
-To securely connect to your MongoDB server, you'll need to capture its SSH host keys:
-
-```bash
-# Basic usage (replace with your MongoDB server hostname or IP)
-ssh-keyscan your-mongodb-server-hostname
-
-# If your SSH server uses a non-standard port
-ssh-keyscan -p 22 your-mongodb-server-hostname
-
-# Hash the hostname for added security (recommended)
-ssh-keyscan -H your-mongodb-server-hostname
-
-# Example for a server at mongo.example.com
-ssh-keyscan -H mongo.example.com
-```
-
-The output will look like:
-```
-# mongo.example.com:22 SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.1
-|1|SoMeHaSh=|AnotherHashPart= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC6Dks9...
-```
-
-Copy the entire output and add it as the `SSH_KNOWN_HOSTS` secret in your GitHub repository.
+The workflow will automatically capture SSH host keys using the `ssh-keyscan` command when it runs.
 
 ## Customizing the Deployment
 

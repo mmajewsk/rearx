@@ -30,52 +30,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      - name: Set up SSH key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-          SSH_USER: ${{ secrets.SSH_USER }}
+      # Set up environment variables for MongoDB connection
+      - name: Set up environment variables
         run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-          
-          # Create SSH config for the database host
-          cat > ~/.ssh/config << EOF
-          Host dbhost
-            HostName $SSH_HOST
-            User $SSH_USER
-            Port $SSH_PORT
-            IdentityFile ~/.ssh/id_rsa
-            StrictHostKeyChecking no
-            UserKnownHostsFile ~/.ssh/known_hosts
-          EOF
-          chmod 600 ~/.ssh/config
-          
-          # Set environment variables for use in other steps
           echo "MONGO_HOST=${{ secrets.MONGO_HOST || 'localhost' }}" >> $GITHUB_ENV
           echo "MONGO_PORT=${{ secrets.MONGO_PORT || '27017' }}" >> $GITHUB_ENV
-          echo "DB_HOST=dbhost" >> $GITHUB_ENV
       
-      - name: Start SSH tunnel to MongoDB
-        env:
-          MONGO_HOST: ${{ env.MONGO_HOST }}
-          MONGO_PORT: ${{ env.MONGO_PORT }}
-          DB_HOST: ${{ env.DB_HOST }}
+      - name: Set up SSH tunnel
         run: |
-          # Start SSH tunnel in background
-          ssh -v -N -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $DB_HOST &
-          # Save the PID to kill it later
-          echo $! > ~/ssh_tunnel_pid.txt
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.REMOTE_SERVER }} >> ~/.ssh/known_hosts
+          eval `ssh-agent -s`
+          ssh-add - <<< "${{secrets.SSH_PRIVATE_KEY}}"
+          ssh -fN -L ${{ env.MONGO_PORT }}:${{ env.MONGO_HOST }}:${{ env.MONGO_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_SERVER }}
+          # Save SSH agent pid to kill later
+          echo $SSH_AGENT_PID > ~/ssh_agent_pid.txt
           # Wait a moment for the tunnel to establish
           sleep 10
           # Test if port is open
-          nc -z $MONGO_HOST $MONGO_PORT && echo "MongoDB port is open" || echo "MongoDB port is not accessible"
-      
+          nc -z ${{ env.MONGO_HOST }} ${{ env.MONGO_PORT }} && echo "MongoDB port is open" || echo "MongoDB port is not accessible"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
       - name: Set up environment file
         env:
           ENV_FILE: ${{ secrets.ENV_FILE }}
@@ -87,19 +63,24 @@ jobs:
         env:
           MONGO_HOST: ${{ env.MONGO_HOST }}
           MONGO_PORT: ${{ env.MONGO_PORT }}
-          DB_HOST: ${{ env.DB_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
         run: |
           # Function to check MongoDB connection and restart tunnel if needed
           check_and_restart_tunnel() {
             if ! nc -z $MONGO_HOST $MONGO_PORT; then
               echo "MongoDB connection lost, restarting tunnel..."
-              # Kill existing tunnel if any
-              if [ -f ~/ssh_tunnel_pid.txt ]; then
-                kill $(cat ~/ssh_tunnel_pid.txt) || true
-              fi
+              
+              # Start a new SSH agent
+              eval `ssh-agent -s`
+              # Save SSH agent pid
+              echo $SSH_AGENT_PID > ~/ssh_agent_pid.txt
+              # Add the SSH key
+              ssh-add - <<< "$SSH_PRIVATE_KEY"
               # Start new tunnel
-              ssh -v -N -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $DB_HOST &
-              echo $! > ~/ssh_tunnel_pid.txt
+              ssh -fN -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $SSH_USER@$REMOTE_SERVER
+              
               sleep 10
               # Check if it worked
               if nc -z $MONGO_HOST $MONGO_PORT; then
@@ -141,18 +122,23 @@ jobs:
         env:
           MONGO_HOST: ${{ env.MONGO_HOST }}
           MONGO_PORT: ${{ env.MONGO_PORT }}
-          DB_HOST: ${{ env.DB_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
         run: |
           # Check tunnel before running
           if ! nc -z $MONGO_HOST $MONGO_PORT; then
             echo "MongoDB connection lost, restarting tunnel..."
-            # Kill existing tunnel if any
-            if [ -f ~/ssh_tunnel_pid.txt ]; then
-              kill $(cat ~/ssh_tunnel_pid.txt) || true
-            fi
+            
+            # Start a new SSH agent
+            eval `ssh-agent -s`
+            # Save SSH agent pid
+            echo $SSH_AGENT_PID > ~/ssh_agent_pid.txt
+            # Add the SSH key
+            ssh-add - <<< "$SSH_PRIVATE_KEY"
             # Start new tunnel
-            ssh -v -N -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $DB_HOST &
-            echo $! > ~/ssh_tunnel_pid.txt
+            ssh -fN -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $SSH_USER@$REMOTE_SERVER
+            
             sleep 10
           fi
           
@@ -170,13 +156,16 @@ jobs:
               # Check and restart tunnel before retrying
               if ! nc -z $MONGO_HOST $MONGO_PORT; then
                 echo "MongoDB connection lost, restarting tunnel..."
-                # Kill existing tunnel if any
-                if [ -f ~/ssh_tunnel_pid.txt ]; then
-                  kill $(cat ~/ssh_tunnel_pid.txt) || true
-                fi
+                
+                # Start a new SSH agent
+                eval `ssh-agent -s`
+                # Save SSH agent pid
+                echo $SSH_AGENT_PID > ~/ssh_agent_pid.txt
+                # Add the SSH key
+                ssh-add - <<< "$SSH_PRIVATE_KEY"
                 # Start new tunnel
-                ssh -v -N -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $DB_HOST &
-                echo $! > ~/ssh_tunnel_pid.txt
+                ssh -fN -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $SSH_USER@$REMOTE_SERVER
+                
                 sleep 10
               fi
               sleep 5
@@ -212,7 +201,11 @@ jobs:
       - name: Clean up SSH tunnel
         if: always()  # Run even if previous steps fail
         run: |
-          if [ -f ~/ssh_tunnel_pid.txt ]; then
-            kill $(cat ~/ssh_tunnel_pid.txt) || true
-            rm ~/ssh_tunnel_pid.txt
+          # Kill any SSH processes
+          pkill -f "ssh -fN -L" || true
+          
+          # Kill SSH agents
+          if [ -f ~/ssh_agent_pid.txt ]; then
+            kill $(cat ~/ssh_agent_pid.txt) || true
+            rm ~/ssh_agent_pid.txt
           fi
