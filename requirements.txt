@@ -1,0 +1,7 @@
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+python-dateutil>=2.8.2
+tinydb>=4.8.0
+pymongo>=4.5.0
+python-dotenv>=1.0.0
+twitter-api-client>=0.10.11

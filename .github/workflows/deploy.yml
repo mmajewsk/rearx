@@ -1,0 +1,215 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  schedule:
+    - cron: '0 */12 * * *'  # Run every 12 hours
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-client netcat-openbsd
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Set up SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          
+          # Create SSH config for the database host
+          cat > ~/.ssh/config << EOF
+          Host dbhost
+            HostName $SSH_HOST
+            User $SSH_USER
+            Port $SSH_PORT
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+            UserKnownHostsFile ~/.ssh/known_hosts
+          EOF
+          chmod 600 ~/.ssh/config
+          
+          # Set environment variables for use in other steps
+          echo "MONGO_HOST=${{ secrets.MONGO_HOST || 'localhost' }}" >> $GITHUB_ENV
+          echo "MONGO_PORT=${{ secrets.MONGO_PORT || '27017' }}" >> $GITHUB_ENV
+          echo "DB_HOST=dbhost" >> $GITHUB_ENV
+      
+      - name: Start SSH tunnel to MongoDB
+        env:
+          MONGO_HOST: ${{ env.MONGO_HOST }}
+          MONGO_PORT: ${{ env.MONGO_PORT }}
+          DB_HOST: ${{ env.DB_HOST }}
+        run: |
+          # Start SSH tunnel in background
+          ssh -v -N -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $DB_HOST &
+          # Save the PID to kill it later
+          echo $! > ~/ssh_tunnel_pid.txt
+          # Wait a moment for the tunnel to establish
+          sleep 10
+          # Test if port is open
+          nc -z $MONGO_HOST $MONGO_PORT && echo "MongoDB port is open" || echo "MongoDB port is not accessible"
+      
+      - name: Run data collection
+        env:
+          MONGODB_USER: ${{ secrets.MONGODB_USER }}
+          MONGODB_PASSWORD: ${{ secrets.MONGODB_PASSWORD }}
+          TWITTER_AUTH_TOKEN: ${{ secrets.TWITTER_AUTH_TOKEN }}
+          TWITTER_CT0_TOKEN: ${{ secrets.TWITTER_CT0_TOKEN }}
+          MONGO_HOST: ${{ env.MONGO_HOST }}
+          MONGO_PORT: ${{ env.MONGO_PORT }}
+          DB_HOST: ${{ env.DB_HOST }}
+        run: |
+          # Function to check MongoDB connection and restart tunnel if needed
+          check_and_restart_tunnel() {
+            if ! nc -z $MONGO_HOST $MONGO_PORT; then
+              echo "MongoDB connection lost, restarting tunnel..."
+              # Kill existing tunnel if any
+              if [ -f ~/ssh_tunnel_pid.txt ]; then
+                kill $(cat ~/ssh_tunnel_pid.txt) || true
+              fi
+              # Start new tunnel
+              ssh -v -N -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $DB_HOST &
+              echo $! > ~/ssh_tunnel_pid.txt
+              sleep 10
+              # Check if it worked
+              if nc -z $MONGO_HOST $MONGO_PORT; then
+                echo "SSH tunnel re-established"
+              else
+                echo "Failed to establish SSH tunnel"
+                return 1
+              fi
+            fi
+            return 0
+          }
+          
+          # Check tunnel before running
+          check_and_restart_tunnel
+          
+          # Run with retry logic
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if python arxiv_collector.py --max=5 --keep-existing; then
+              echo "Data collection successful"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              echo "Data collection failed, attempt $RETRY_COUNT of $MAX_RETRIES"
+              # Check and restart tunnel before retrying
+              check_and_restart_tunnel
+              sleep 5
+            fi
+          done
+          
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "Data collection failed after $MAX_RETRIES attempts"
+            exit 1
+          fi
+      
+      - name: Generate visualization
+        env:
+          MONGO_HOST: ${{ env.MONGO_HOST }}
+          MONGO_PORT: ${{ env.MONGO_PORT }}
+          DB_HOST: ${{ env.DB_HOST }}
+        run: |
+          # Check tunnel before running
+          if ! nc -z $MONGO_HOST $MONGO_PORT; then
+            echo "MongoDB connection lost, restarting tunnel..."
+            # Kill existing tunnel if any
+            if [ -f ~/ssh_tunnel_pid.txt ]; then
+              kill $(cat ~/ssh_tunnel_pid.txt) || true
+            fi
+            # Start new tunnel
+            ssh -v -N -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $DB_HOST &
+            echo $! > ~/ssh_tunnel_pid.txt
+            sleep 10
+          fi
+          
+          # Run with retry logic
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if python arxiv_visualizer.py --no-browser; then
+              echo "Visualization generation successful"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              echo "Visualization failed, attempt $RETRY_COUNT of $MAX_RETRIES"
+              # Check and restart tunnel before retrying
+              if ! nc -z $MONGO_HOST $MONGO_PORT; then
+                echo "MongoDB connection lost, restarting tunnel..."
+                # Kill existing tunnel if any
+                if [ -f ~/ssh_tunnel_pid.txt ]; then
+                  kill $(cat ~/ssh_tunnel_pid.txt) || true
+                fi
+                # Start new tunnel
+                ssh -v -N -L $MONGO_PORT:$MONGO_HOST:$MONGO_PORT $DB_HOST &
+                echo $! > ~/ssh_tunnel_pid.txt
+                sleep 10
+              fi
+              sleep 5
+            fi
+          done
+          
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "Visualization generation failed after $MAX_RETRIES attempts"
+            exit 1
+          fi
+      
+      - name: Prepare GitHub Pages content
+        run: |
+          # Create the GitHub Pages directory
+          mkdir -p gh-pages
+          # Copy the renders directory (contains main.html, list.html, and all visualizations)
+          cp -r renders/* gh-pages/
+          # Rename main.html to index.html for GitHub Pages
+          mv gh-pages/main.html gh-pages/index.html
+          # Update links in all HTML files to reference index.html instead of main.html
+          find gh-pages -name "*.html" -exec sed -i 's/main\.html/index.html/g' {} \;
+          # Create a README for the GitHub Pages branch
+          echo "# ArXiv AI Security Papers" > gh-pages/README.md
+          echo "Generated by GitHub Actions on $(date)" >> gh-pages/README.md
+      
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: gh-pages
+          # The branch the action should deploy to
+          branch: gh-pages
+      
+      - name: Clean up SSH tunnel
+        if: always()  # Run even if previous steps fail
+        run: |
+          if [ -f ~/ssh_tunnel_pid.txt ]; then
+            kill $(cat ~/ssh_tunnel_pid.txt) || true
+            rm ~/ssh_tunnel_pid.txt
+          fi

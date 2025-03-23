@@ -26,14 +26,23 @@ class ArxivVisualizer:
         renders_dir = os.path.join(os.path.dirname(__file__), 'renders')
         os.makedirs(renders_dir, exist_ok=True)
         
-        # Add timestamp to output filename if not specified explicitly
-        if output_file == "arxiv_papers.html":
-            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename, ext = os.path.splitext(output_file)
-            output_file = f"{filename}_{timestamp}{ext}"
+        # Prepare both timestamped and main file names
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        # Construct full path in renders directory
-        output_path = os.path.join(renders_dir, output_file)
+        # Handle custom output file name
+        if output_file == "arxiv_papers.html":
+            timestamped_output = f"arxiv_papers_{timestamp}.html"
+        else:
+            # Keep custom name but add timestamp
+            filename, ext = os.path.splitext(output_file)
+            timestamped_output = f"{filename}_{timestamp}{ext}"
+        
+        # Construct full paths
+        timestamped_path = os.path.join(renders_dir, timestamped_output)
+        main_path = os.path.join(renders_dir, "main.html")
+        
+        # Keep original output path for backward compatibility
+        output_path = os.path.join(os.path.dirname(__file__), output_file)
         
         papers_json = []
         for paper in papers:
@@ -62,16 +71,25 @@ class ArxivVisualizer:
         html = html.replace('{{count}}', str(papers_count))
         html = html.replace('{{papers_json}}', json.dumps(papers_json, ensure_ascii=False))
         
-        # Also save to the original location for backward compatibility
-        with open(output_file, 'w') as f:
-            f.write(html)
-            
-        # Save to renders directory
+        # Save to the original location for backward compatibility
         with open(output_path, 'w') as f:
             f.write(html)
+            
+        # Save to timestamped file in renders directory
+        with open(timestamped_path, 'w') as f:
+            f.write(html)
+            
+        # Also save to main.html in renders directory
+        with open(main_path, 'w') as f:
+            f.write(html)
         
-        print(f"HTML visualization generated: {os.path.abspath(output_path)}")
-        return os.path.abspath(output_path)
+        print(f"HTML visualization generated:")
+        print(f"  - Timestamped version: {os.path.abspath(timestamped_path)}")
+        print(f"  - Main version: {os.path.abspath(main_path)}")
+        print(f"  - Original path: {os.path.abspath(output_path)}")
+        
+        # Return the main.html path as the primary output
+        return os.path.abspath(main_path)
 
 def main():
     import sys
@@ -116,11 +134,12 @@ Examples:
     if open_browser:
         try:
             webbrowser.open(f"file://{html_file}")
+            print(f"Browser opened with the main visualization file")
         except:
             print("Could not automatically open the HTML file in a browser")
     
     render_dir = os.path.join(os.path.dirname(__file__), 'renders')
-    print(f"All visualizations are saved in the 'renders' directory: {render_dir}")
+    print(f"\nTip: For the latest visualization, always use: {os.path.join(render_dir, 'main.html')}")
 
 if __name__ == "__main__":
     main()

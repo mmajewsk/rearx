@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArXiv Paper Visualizations History</title>
+    <style>
+        body { font-family: Verdana, sans-serif; margin: 0; padding: 0; background-color: #eee; }
+        .container { max-width: 950px; margin: 0 auto; padding: 20px; background-color: #fff; }
+        .header { background-color: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 10px 20px; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 20px; color: #369; }
+        .renders-list { list-style-type: none; padding: 0; }
+        .renders-list li { padding: 10px; border-bottom: 1px solid #ddd; }
+        .renders-list a { color: #0000ff; text-decoration: none; font-weight: bold; }
+        .renders-list .date { color: #888; font-size: 12px; margin-left: 10px; }
+        .back-button { margin-top: 20px; }
+        .back-button a { display: inline-block; padding: 10px 15px; background-color: #5f99cf; color: white; text-decoration: none; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ArXiv Paper Visualizations History</h1>
+        </div>
+        
+        <p>View the <a href="main.html">latest visualization</a> or select a previous version below:</p>
+        
+        <ul class="renders-list">
+            {{render_items}}
+        </ul>
+        
+        <div class="back-button">
+            <a href="main.html">Back to Latest Visualization</a>
+        </div>
+    </div>
+</body>
+</html>
