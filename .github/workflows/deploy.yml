@@ -12,6 +12,7 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment: myenv
     
     steps:
       - name: Checkout Repository
@@ -37,30 +38,20 @@ jobs:
           eval `ssh-agent -s`
           ssh-add - <<< "${{secrets.SSH_PRIVATE_KEY}}"
           ssh -fN -p ${{ secrets.SSH_PORT }} -L 27017:localhost:27017 ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_SERVER }}
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PORT: ${{ secrets.SSH_PORT}} 
+          # Save SSH agent pid to kill later
+          echo $SSH_AGENT_PID > ~/ssh_agent_pid.txt
+          # Test if port is open
+          nc -z localhost 27017 && echo "MongoDB port is open" || echo "MongoDB port is not accessible"
       - name: Set up environment file
-        env:
-          ENV_FILE: ${{ secrets.ENV_FILE }}
         run: |
-          echo "$ENV_FILE" > .env
+          echo "${{ secrets.ENV_FILE }}" > .env
           chmod 600 .env
           
       - name: Run data collection
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
         run: |
           python arxiv_collector.py --max=5 --keep-existing
       
       - name: Generate visualization
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
         run: |
           python arxiv_visualizer.py --no-browser
       
