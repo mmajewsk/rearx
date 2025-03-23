@@ -33,13 +33,14 @@ jobs:
       - name: Set up SSH tunnel
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.REMOTE_SERVER }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.REMOTE_SERVER }} >> ~/.ssh/known_hosts
           eval `ssh-agent -s`
           ssh-add - <<< "${{secrets.SSH_PRIVATE_KEY}}"
-          ssh -fN -p ${{ secrets.SSH_PORT || '22' }} -L 27017:localhost:27017 ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_SERVER }}
+          ssh -fN -p ${{ secrets.SSH_PORT }} -L 27017:localhost:27017 ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_SERVER }}
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT}} 
       - name: Set up environment file
         env:
           ENV_FILE: ${{ secrets.ENV_FILE }}
@@ -49,8 +50,6 @@ jobs:
           
       - name: Run data collection
         env:
-          MONGO_HOST: ${{ env.MONGO_HOST }}
-          MONGO_PORT: ${{ env.MONGO_PORT }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_USER: ${{ secrets.SSH_USER }}
           REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
@@ -59,8 +58,6 @@ jobs:
       
       - name: Generate visualization
         env:
-          MONGO_HOST: ${{ env.MONGO_HOST }}
-          MONGO_PORT: ${{ env.MONGO_PORT }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_USER: ${{ secrets.SSH_USER }}
           REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
