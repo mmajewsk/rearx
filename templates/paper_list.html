@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <style>
+        body { font-family: Verdana, sans-serif; margin: 0; padding: 0; background-color: #eee; }
+        .container { max-width: 950px; margin: 0 auto; padding: 20px; background-color: #fff; }
+        .header { background-color: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 10px 20px; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 20px; color: #369; }
+        .filter-options { display: flex; justify-content: space-between; margin-bottom: 20px; padding: 10px; background-color: #f8f8f8; border: 1px solid #ddd; }
+        .filter-options button { color: #369; cursor: pointer; padding: 5px 10px; background: none; border: none; }
+        .filter-options button.active { font-weight: bold; background-color: #e2e2e2; border-radius: 3px; }
+        .paper-row { padding: 10px; border-bottom: 1px solid #ddd; line-height: 1.4; }
+        .paper-main { display: flex; align-items: center; cursor: pointer; }
+        .rank { flex: 0 0 30px; color: #888; text-align: right; padding-right: 10px; font-size: 18px; }
+        .votes { flex: 0 0 70px; text-align: center; padding: 0 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .votes strong { color: #cc3700; font-size: 15px; }
+        .paper-content { flex: 1; display: flex; flex-direction: column; }
+        .paper-title { color: #0000ff; text-decoration: none; font-weight: bold; font-size: 16px; }
+        .paper-meta { color: #888; font-size: 12px; margin-top: 4px; }
+        .paper-details { margin-top: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 5px; display: none; }
+        .paper-details.show { display: block; }
+        .abstract { font-size: 14px; line-height: 1.5; margin-top: 10px; white-space: pre-line; }
+        .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #888; padding: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{title}}</h1>
+        </div>
+        <div class="filter-options">
+            <div>
+                <button onclick="sortPapers('date')" class="active" id="sort-date">Recent</button>
+                <button onclick="sortPapers('citations')" id="sort-citations">Most Cited</button>
+                <button onclick="sortPapers('tweets')" id="sort-tweets">Most Tweeted</button>
+            </div>
+            <div>
+                <button onclick="expandAll()" id="expand-all">Expand All</button>
+                <button onclick="collapseAll()" id="collapse-all">Collapse All</button>
+            </div>
+        </div>
+        
+        <div id="papers-container"></div>
+        
+        <div class="footer">
+            Generated on {{date}} | Database contains {{count}} papers total.
+        </div>
+    </div>
+    
+    <script>
+    const papers = {{papers_json}};
+    let currentSort = 'date';
+    
+    function formatDate(dateString) {
+        if (!dateString) return "Unknown date";
+        const match = dateString.match(/(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : "Unknown date";
+    }
+    
+    function formatAuthors(authors, full = false) {
+        if (!authors || authors.length === 0) return "Unknown authors";
+        if (!full && authors.length > 3) {
+            return authors.slice(0, 3).join(', ') + ' et al.';
+        }
+        return authors.join(', ');
+    }
+    
+    function formatCategories(categories) {
+        if (!categories || categories.length === 0) return "";
+        return categories.join(', ');
+    }
+    
+    function toggleDetails(id) {
+        const details = document.getElementById(`paper-details-${id}`);
+        if (details.classList.contains('show')) {
+            details.classList.remove('show');
+        } else {
+            details.classList.add('show');
+        }
+    }
+    
+    function expandAll() {
+        document.querySelectorAll('.paper-details').forEach(el => {
+            el.classList.add('show');
+        });
+    }
+    
+    function collapseAll() {
+        document.querySelectorAll('.paper-details').forEach(el => {
+            el.classList.remove('show');
+        });
+    }
+    
+    function sortPapers(sortMethod) {
+        document.getElementById('sort-date').classList.remove('active');
+        document.getElementById('sort-citations').classList.remove('active');
+        document.getElementById('sort-tweets').classList.remove('active');
+        document.getElementById('sort-' + sortMethod).classList.add('active');
+        
+        let sortedPapers = [...papers];
+        if (sortMethod === 'date') {
+            sortedPapers.sort((a, b) => (b.published || '').localeCompare(a.published || ''));
+        } else if (sortMethod === 'citations') {
+            sortedPapers.sort((a, b) => (b.citations || 0) - (a.citations || 0));
+        } else if (sortMethod === 'tweets') {
+            sortedPapers.sort((a, b) => (b.tweets || 0) - (a.tweets || 0));
+        }
+        
+        currentSort = sortMethod;
+        
+        let html = '';
+        sortedPapers.forEach((paper, index) => {
+            html += `
+            <div class="paper-row">
+                <div class="paper-main" onclick="toggleDetails(${index})">
+                    <div class="rank">${index + 1}</div>
+                    <div class="votes">
+                        <strong>${paper.citations}</strong>
+                        <span>cites</span>
+                    </div>
+                    <div class="paper-content">
+                        <a href="${paper.paper_link}" class="paper-title" target="_blank" onclick="event.stopPropagation()">${paper.title}</a>
+                        <div class="paper-meta">
+                            ${formatDate(paper.published)} | ${formatAuthors(paper.authors)} | 🐦 ${paper.tweets} tweets
+                        </div>
+                    </div>
+                </div>
+                <div class="paper-details" id="paper-details-${index}">
+                    <div><strong>Categories:</strong> ${formatCategories(paper.categories)}</div>
+                    <div class="abstract">${paper.abstract || 'No abstract available'}</div>
+                </div>
+            </div>
+            `;
+        });
+        
+        document.getElementById('papers-container').innerHTML = html;
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        sortPapers('date');
+    });
+    </script>
+</body>
+</html>
