@@ -35,9 +35,9 @@
         </div>
         <div class="filter-options">
             <div>
-                <button onclick="sortPapers('date')" class="active" id="sort-date">Recent</button>
+                <button onclick="sortPapers('date')" id="sort-date">Recent</button>
                 <button onclick="sortPapers('citations')" id="sort-citations">Most Cited</button>
-                <button onclick="sortPapers('tweets')" id="sort-tweets">Most Tweeted</button>
+                <button onclick="sortPapers('tweets')" class="active" id="sort-tweets">Most Tweeted</button>
             </div>
             <div>
                 <button onclick="expandAll()" id="expand-all">Expand All</button>
@@ -148,7 +148,7 @@
     }
     
     document.addEventListener('DOMContentLoaded', function() {
-        sortPapers('date');
+        sortPapers('tweets');
     });
     </script>
 </body>
