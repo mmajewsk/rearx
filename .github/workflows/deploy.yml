@@ -76,12 +76,15 @@ jobs:
           # Test if port is open
           nc -z $MONGO_HOST $MONGO_PORT && echo "MongoDB port is open" || echo "MongoDB port is not accessible"
       
+      - name: Set up environment file
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        run: |
+          echo "$ENV_FILE" > .env
+          chmod 600 .env
+          
       - name: Run data collection
         env:
-          MONGODB_USER: ${{ secrets.MONGODB_USER }}
-          MONGODB_PASSWORD: ${{ secrets.MONGODB_PASSWORD }}
-          TWITTER_AUTH_TOKEN: ${{ secrets.TWITTER_AUTH_TOKEN }}
-          TWITTER_CT0_TOKEN: ${{ secrets.TWITTER_CT0_TOKEN }}
           MONGO_HOST: ${{ env.MONGO_HOST }}
           MONGO_PORT: ${{ env.MONGO_PORT }}
           DB_HOST: ${{ env.DB_HOST }}

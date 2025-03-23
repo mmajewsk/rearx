@@ -21,13 +21,14 @@ To set up automatic deployment, you need to add the following secrets to your Gi
 - `MONGO_HOST`: The hostname that MongoDB listens on inside the server (defaults to "localhost")
 - `MONGO_PORT`: The port that MongoDB listens on (defaults to "27017")
 
-### Database Authentication
-- `MONGODB_USER`: The username for MongoDB authentication
-- `MONGODB_PASSWORD`: The password for MongoDB authentication
-
-### Twitter API
-- `TWITTER_AUTH_TOKEN`: Twitter auth_token for API access
-- `TWITTER_CT0_TOKEN`: Twitter ct0 token for API access
+### Environment Variables
+- `ENV_FILE`: The entire contents of your .env file which should include:
+  ```
+  MONGODB_USER=your_mongodb_username
+  MONGODB_PASSWORD=your_mongodb_password
+  TWITTER_AUTH_TOKEN=your_twitter_auth_token
+  TWITTER_CT0_TOKEN=your_twitter_ct0_token
+  ```
 
 ## Setting Up GitHub Pages
 
@@ -35,7 +36,7 @@ To set up automatic deployment, you need to add the following secrets to your Gi
 2. Under "Source," select "GitHub Actions"
 3. The workflow will automatically deploy to the gh-pages branch
 
-## SSH Key Generation
+## SSH Key and Known Hosts Generation
 
 If you need to generate a new SSH key for GitHub Actions:
 
@@ -48,10 +49,33 @@ cat github-actions
 
 # Display the public key (add this to the MongoDB server's authorized_keys)
 cat github-actions.pub
-
-# Generate the known hosts entry (add this as SSH_KNOWN_HOSTS secret)
-ssh-keyscan -H your-mongodb-server-hostname
 ```
+
+### Generating SSH Known Hosts
+
+To securely connect to your MongoDB server, you'll need to capture its SSH host keys:
+
+```bash
+# Basic usage (replace with your MongoDB server hostname or IP)
+ssh-keyscan your-mongodb-server-hostname
+
+# If your SSH server uses a non-standard port
+ssh-keyscan -p 22 your-mongodb-server-hostname
+
+# Hash the hostname for added security (recommended)
+ssh-keyscan -H your-mongodb-server-hostname
+
+# Example for a server at mongo.example.com
+ssh-keyscan -H mongo.example.com
+```
+
+The output will look like:
+```
+# mongo.example.com:22 SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.1
+|1|SoMeHaSh=|AnotherHashPart= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC6Dks9...
+```
+
+Copy the entire output and add it as the `SSH_KNOWN_HOSTS` secret in your GitHub repository.
 
 ## Customizing the Deployment
 
