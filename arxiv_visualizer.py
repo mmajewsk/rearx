@@ -22,6 +22,19 @@ class ArxivVisualizer:
             print("No papers to visualize")
             return None
         
+        # Ensure renders directory exists
+        renders_dir = os.path.join(os.path.dirname(__file__), 'renders')
+        os.makedirs(renders_dir, exist_ok=True)
+        
+        # Add timestamp to output filename if not specified explicitly
+        if output_file == "arxiv_papers.html":
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename, ext = os.path.splitext(output_file)
+            output_file = f"{filename}_{timestamp}{ext}"
+        
+        # Construct full path in renders directory
+        output_path = os.path.join(renders_dir, output_file)
+        
         papers_json = []
         for paper in papers:
             paper_obj = {
@@ -49,16 +62,22 @@ class ArxivVisualizer:
         html = html.replace('{{count}}', str(papers_count))
         html = html.replace('{{papers_json}}', json.dumps(papers_json, ensure_ascii=False))
         
+        # Also save to the original location for backward compatibility
         with open(output_file, 'w') as f:
             f.write(html)
+            
+        # Save to renders directory
+        with open(output_path, 'w') as f:
+            f.write(html)
         
-        print(f"HTML visualization generated: {os.path.abspath(output_file)}")
-        return os.path.abspath(output_file)
+        print(f"HTML visualization generated: {os.path.abspath(output_path)}")
+        return os.path.abspath(output_path)
 
 def main():
     import sys
     
     output_file = 'arxiv_papers.html'
+    open_browser = True
     
     for arg in sys.argv[1:]:
         if arg == "--help":
@@ -69,7 +88,8 @@ Usage:
   python arxiv_visualizer.py [options]
 
 Options:
-  --output=FILE     Output HTML file (default: arxiv_papers.html)
+  --output=FILE     Output HTML file (default: arxiv_papers_TIMESTAMP.html in renders/)
+  --no-browser      Don't open the HTML file in a browser
   --help            Show this help message
 
 Examples:
@@ -79,6 +99,8 @@ Examples:
             sys.exit(0)
         elif arg.startswith("--output="):
             output_file = arg.split("=")[1]
+        elif arg == "--no-browser":
+            open_browser = False
         else:
             print(f"Unknown argument: {arg}")
             sys.exit(1)
@@ -91,10 +113,14 @@ Examples:
     
     html_file = visualizer.generate_html(output_file=output_file)
     
-    try:
-        webbrowser.open(f"file://{html_file}")
-    except:
-        print("Could not automatically open the HTML file in a browser")
+    if open_browser:
+        try:
+            webbrowser.open(f"file://{html_file}")
+        except:
+            print("Could not automatically open the HTML file in a browser")
+    
+    render_dir = os.path.join(os.path.dirname(__file__), 'renders')
+    print(f"All visualizations are saved in the 'renders' directory: {render_dir}")
 
 if __name__ == "__main__":
     main()

@@ -30,3 +30,7 @@ arxiv_papers.json
 
 # Result files
 results/
+
+# Allow renders directory
+!renders/
+!renders/*.html
