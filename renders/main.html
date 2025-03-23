@@ -35,20 +35,24 @@
         </div>
         <div class="filter-options">
             <div>
-                <button onclick="sortPapers('date')" class="active" id="sort-date">Recent</button>
+                <button onclick="sortPapers('date')" id="sort-date">Recent</button>
                 <button onclick="sortPapers('citations')" id="sort-citations">Most Cited</button>
-                <button onclick="sortPapers('tweets')" id="sort-tweets">Most Tweeted</button>
+                <button onclick="sortPapers('tweets')" class="active" id="sort-tweets">Most Tweeted</button>
             </div>
             <div>
                 <button onclick="expandAll()" id="expand-all">Expand All</button>
                 <button onclick="collapseAll()" id="collapse-all">Collapse All</button>
+                <a href="list.html" style="margin-left: 20px; background-color: #5f99cf; color: white; padding: 5px 10px; text-decoration: none; border-radius: 3px;">See Previous Renders</a>
             </div>
         </div>
         
         <div id="papers-container"></div>
         
         <div class="footer">
-            Generated on 2025-03-23 15:02:06 | Database contains 20 papers total.
+            Generated on 2025-03-23 15:14:23 | Database contains 20 papers total.
+            <div style="margin-top: 10px;">
+                <a href="list.html" style="color: #369; text-decoration: none;">View render history</a>
+            </div>
         </div>
     </div>
     
@@ -144,7 +148,7 @@
     }
     
     document.addEventListener('DOMContentLoaded', function() {
-        sortPapers('date');
+        sortPapers('tweets');
     });
     </script>
 </body>

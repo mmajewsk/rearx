@@ -15,6 +15,42 @@ class ArxivVisualizer:
     def count_papers(self):
         return self.db.count_papers()
     
+    def generate_renders_list_html(self):
+        """Generate a HTML file listing all renders in the renders directory"""
+        renders_dir = os.path.join(os.path.dirname(__file__), 'renders')
+        list_path = os.path.join(renders_dir, "list.html")
+        
+        # Get all HTML files in the renders directory except main.html and list.html
+        html_files = []
+        for file in os.listdir(renders_dir):
+            if file.endswith(".html") and file not in ["main.html", "list.html"]:
+                file_path = os.path.join(renders_dir, file)
+                file_time = os.path.getmtime(file_path)
+                html_files.append((file, datetime.datetime.fromtimestamp(file_time)))
+        
+        # Sort by modification time (newest first)
+        html_files.sort(key=lambda x: x[1], reverse=True)
+        
+        # Generate the render items HTML
+        render_items = ""
+        for file, time in html_files:
+            formatted_time = time.strftime('%Y-%m-%d %H:%M:%S')
+            render_items += f'<li><a href="{file}">{file}</a> <span class="date">{formatted_time}</span></li>\n'
+        
+        # Load the template
+        template_path = os.path.join(os.path.dirname(__file__), 'templates', 'render_list.html')
+        with open(template_path, 'r') as f:
+            template = f.read()
+        
+        # Replace the placeholder with the actual render items
+        html = template.replace('{{render_items}}', render_items)
+        
+        # Write the HTML file
+        with open(list_path, 'w') as f:
+            f.write(html)
+        
+        return list_path
+        
     def generate_html(self, output_file="arxiv_papers.html", title="ArXiv AI Security Papers"):
         papers = self.get_all_papers()
         
@@ -82,10 +118,14 @@ class ArxivVisualizer:
         # Also save to main.html in renders directory
         with open(main_path, 'w') as f:
             f.write(html)
+            
+        # Generate the list.html file with all renders
+        list_path = self.generate_renders_list_html()
         
         print(f"HTML visualization generated:")
         print(f"  - Timestamped version: {os.path.abspath(timestamped_path)}")
         print(f"  - Main version: {os.path.abspath(main_path)}")
+        print(f"  - History list: {os.path.abspath(list_path)}")
         print(f"  - Original path: {os.path.abspath(output_path)}")
         
         # Return the main.html path as the primary output
