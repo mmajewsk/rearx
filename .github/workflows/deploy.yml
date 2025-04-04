@@ -33,21 +33,59 @@ jobs:
       
       - name: Set up SSH tunnel
         run: |
+          echo "Step 1: Creating SSH directory..."
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
+          echo "Step 2: Adding remote server to known hosts..."
           ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.REMOTE_SERVER }} >> ~/.ssh/known_hosts
+          echo "SSH known_hosts file contents (sanitized):"
+          cat ~/.ssh/known_hosts | sed 's/ssh-.*=/ssh-XXX=/'
+          
+          echo "Step 3: Starting SSH agent..."
           eval `ssh-agent -s`
+          
+          echo "Step 4: Preparing private key..."
+          # First 27 chars of key for debug (enough to see if it's the right format without exposing the key)
+          echo "${{secrets.SSH_PRIVATE_KEY}}" | head -1 | cut -c 1-27
           echo "${{secrets.SSH_PRIVATE_KEY}}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          ls -la ~/.ssh/id_rsa
+          
+          echo "Step 5: Adding key to SSH agent..."
           ssh-add ~/.ssh/id_rsa
+          ssh-add -l
+          
+          echo "Step 6: Establishing SSH tunnel..."
           # Add -v for verbose output to help troubleshoot
-          ssh -v -fN -p ${{ secrets.SSH_PORT }} -L 27017:localhost:27017 ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_SERVER }}
+          ssh -v -fN -o ExitOnForwardFailure=yes -p ${{ secrets.SSH_PORT }} -L 27017:localhost:27017 ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_SERVER }}
+          if [ $? -eq 0 ]; then
+            echo "SSH tunnel command executed successfully"
+          else
+            echo "SSH tunnel command failed with exit code $?"
+            exit 1
+          fi
+          
           # Save SSH agent pid to kill later
           echo $SSH_AGENT_PID > ~/ssh_agent_pid.txt
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID"
+          
+          echo "Step 7: Waiting for tunnel to establish..."
           # Wait a moment for the tunnel to establish
-          sleep 3
+          sleep 5
+          
+          echo "Step 8: Testing MongoDB connection..."
           # Test if port is open
-          nc -z localhost 27017 && echo "MongoDB port is open" || { echo "MongoDB port is not accessible"; exit 1; }
+          nc -zv localhost 27017
+          if [ $? -eq 0 ]; then
+            echo "MongoDB port is open"
+          else
+            echo "MongoDB port is not accessible"
+            echo "Checking for any running SSH processes:"
+            ps aux | grep ssh
+            echo "Checking netstat for port 27017:"
+            netstat -tuln | grep 27017 || echo "No process listening on 27017"
+            exit 1
+          fi
       - name: Set up environment file
         run: |
           echo "${{ secrets.ENV_FILE }}" > .env
