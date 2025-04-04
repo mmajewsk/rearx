@@ -34,14 +34,20 @@ jobs:
       - name: Set up SSH tunnel
         run: |
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.REMOTE_SERVER }} >> ~/.ssh/known_hosts
           eval `ssh-agent -s`
-          ssh-add - <<< "${{secrets.SSH_PRIVATE_KEY}}"
-          ssh -fN -p ${{ secrets.SSH_PORT }} -L 27017:localhost:27017 ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_SERVER }}
+          echo "${{secrets.SSH_PRIVATE_KEY}}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-add ~/.ssh/id_rsa
+          # Add -v for verbose output to help troubleshoot
+          ssh -v -fN -p ${{ secrets.SSH_PORT }} -L 27017:localhost:27017 ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_SERVER }}
           # Save SSH agent pid to kill later
           echo $SSH_AGENT_PID > ~/ssh_agent_pid.txt
+          # Wait a moment for the tunnel to establish
+          sleep 3
           # Test if port is open
-          nc -z localhost 27017 && echo "MongoDB port is open" || echo "MongoDB port is not accessible"
+          nc -z localhost 27017 && echo "MongoDB port is open" || { echo "MongoDB port is not accessible"; exit 1; }
       - name: Set up environment file
         run: |
           echo "${{ secrets.ENV_FILE }}" > .env
